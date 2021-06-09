@@ -1,0 +1,103 @@
+.program hd44780_4bit
+.side_set 2 opt
+
+; side: E
+; pins: 
+; outs: D4 D5 D6 D7
+
+; in format:
+;  [RS] [RW] | [D7] [D6] [D5] [D4] [D3] [D2] [D1] [D0]
+
+; zapojeni: 
+
+; GP16: D4
+; GP17: D5
+; GP18: D6
+; GP19: D7
+; GP20: RS
+; GP21: RW
+; GP22: E
+
+; side pin - E[0x02], RW[0x01]
+; set pins: RW, RS
+
+.wrap_target
+start:
+  pull                          ; pull new data from tx fifo to OSR
+  out null, 16                  ; discard 6 bits from OSR because we write uint16_t values
+  out x, 1                      ; shift flag RS from OSR to register X
+
+                                ; this 4 instructions set RS pin according register X
+  jmp x-- rsone                 ; 
+rszero:
+  set pins, 0x00                ; RS = 0
+  jmp endsetrs               
+rsone:
+  set pins, 0x10                ; RS = 1
+endsetrs:
+
+  out x, 1                      ; shift flag RW to register X
+  jmp x-- read                  ; if flag X was set, jump to READ
+
+                                ; WRITE
+  set pindirs, 0x1f side 0x00   ; switch data pins to output ;; ///////////////////////////////// FIXME: tady jsem dal side 0x00, jako opravu - snad to pojede
+  out pins, 4       side 0x02   ; out 4 bits to pins            | side: RW = 0, E = 1
+  nop               side 0x00   ;                               | side: RW = 0, E = 0
+  out pins, 4       side 0x02   ; out 4 bits to pins            | side: RW = 0, E = 1
+  nop               side 0x00   ;                               | side: RW = 0, E = 0
+
+                                ; WAIT WHILE BUSYFLAG IS HI
+  set pindirs, 0x10 side 0x01   ; switch data pins to input     | side: RW = 1, E = 0
+  set pins, 0x00                ; RS = 0
+waitbusy:
+                                ; this code extracts BUSY flag from input pins
+  mov isr, null     side 0x03   ; clear ISR                     | side: RW = 1, E = 1
+  in pins, 4        side 0x01   ; shift 4 bits ito ISR          | side: RW = 1, E = 0
+  mov osr, ::isr    side 0x03   ; reverse bits and copy to OSR  | side: RW = 1, E = 1
+  out null, 3       side 0x01   ; disrard 3 bits from OSR       | side: RW = 1, E = 0
+  mov x, osr                    ; move OSR to register X 
+                                ; (this is BUSY flag)
+
+  jmp x-- waitbusy              ; if register X is not zero, repeat
+
+  jmp start                     ; process next instruction from TX fifo
+
+                                ; READ
+read:
+  set pindirs, 0x10 side 0x01   ; switch data pins to input | side: RW = 1, E = 0
+  mov isr, null     side 0x03   ; clear ISR                 | side: RW = 1, E = 1
+  in pins, 4        side 0x01   ; shift 4 bits into ISR     | side: RW = 1, E = 0
+  nop               side 0x03   ;                           | side: RW = 1, E = 1
+  in pins, 4        side 0x01   ; shift 4 bits into ISR     | side: RW = 1, E = 0
+  push                          ; push data into RX fifo
+.wrap
+
+
+% c-sdk {
+
+#include "hardware/clocks.h"
+
+static inline void hd44780_program_init(PIO pio, uint sm, uint offset, uint pin, float freq)
+{
+    for (int i = 0; i < 7; i++)
+        pio_gpio_init(pio, pin + i);
+
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 7, true);
+
+    pio_sm_config c = hd44780_4bit_program_get_default_config(offset);
+    sm_config_set_out_pins(&c, pin, 4);
+    sm_config_set_in_pins(&c, pin);
+    sm_config_set_set_pins(&c, pin, 5);
+    sm_config_set_sideset_pins(&c, pin + 5);
+    sm_config_set_out_shift(&c, false, false, 10);
+    sm_config_set_in_shift(&c, false, false, 32);
+
+    int cycles_per_data = 1;
+    float div = clock_get_hz(clk_sys) / (freq * cycles_per_data);
+    sm_config_set_clkdiv(&c, div);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+%}
