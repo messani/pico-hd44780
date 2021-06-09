@@ -40,5 +40,5 @@ When 2MHz frequency is used, I managed to draw approx. 300frames per second.
 
 ## Conclusion
 
-This is only attempt to learn something new. This is definitely not the best implementation. If you see better implementation, let me know :)
+This is only attempt to learn something new. This is definitely not the best implementation. If you know better way, how to do it, let me know :)
 
