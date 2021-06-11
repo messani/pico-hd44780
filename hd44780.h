@@ -12,7 +12,7 @@ extern "C" {
 /*!
  * @brief initialization
  */
-void hd44780_init(PIO pio, int sm);
+void hd44780_init(PIO pio, int sm, int pin, float freq);
 
 /*!
  * @brief termination
