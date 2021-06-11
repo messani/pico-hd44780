@@ -35,7 +35,4 @@ int main()
         hd44780_setddramaddr(0x54);
         hd44780_writebytes((const uint8_t *)buf, strlen(buf));
     }
-    while(1)
-    {
-    }
 }
