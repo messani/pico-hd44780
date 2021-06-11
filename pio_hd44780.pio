@@ -40,7 +40,7 @@ endsetrs:
   jmp x-- read                  ; if flag X was set, jump to READ
 
                                 ; WRITE
-  set pindirs, 0x1f side 0x00   ; switch data pins to output ;; ///////////////////////////////// FIXME: tady jsem dal side 0x00, jako opravu - snad to pojede
+  set pindirs, 0x1f side 0x00   ; switch data pins to output
   out pins, 4       side 0x02   ; out 4 bits to pins            | side: RW = 0, E = 1
   nop               side 0x00   ;                               | side: RW = 0, E = 0
   out pins, 4       side 0x02   ; out 4 bits to pins            | side: RW = 0, E = 1
